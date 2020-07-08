@@ -1,0 +1,120 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using System.IO.Ports;
+
+namespace test
+{
+    public partial class Form1 : Form
+    {
+        SerialPort _serial = new SerialPort();
+        string _serialPortName = "";  //初始serialport為空
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void Button1_Click(object sender, EventArgs e)
+        {
+            _serial.BaudRate = 9600;  //設定comport的鮑率
+            if (_serialPortName!="")  
+            {
+                _serial.PortName = _serialPortName; //找可用的Serialport名字
+                _serial.ReadTimeout = 50; //讀取comport過程 逾時秒數
+                _serial.Open();  //打開port
+                t_updateRcBox.Enabled = true;  //打開timer
+                btn_connectserail.Enabled = false; //按下buttonConnect後 變成灰色 不能再按
+                btn_stop.Enabled = true; //當button connect按下之後 stop就可以被點
+            }
+            else
+            {
+                MessageBox.Show("請選擇COM port"); 
+            }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            cb_serialportlist.Items.AddRange(SerialPort.GetPortNames()); //搜尋電腦所有的comport 增加到combobox
+        }
+
+        private void Timer1_Tick(object sender, EventArgs e)
+        {
+            //$GNGGA,054102.000,2408.6529,N,12043.7248,E,1,10,2.6,139.7,M,0.0,M,,*72
+            try
+            {
+                string str = _serial.ReadLine();
+                if (str.Contains("GNGGA"))  //判斷str有沒有讀到GGA  Contains:判斷字有沒有在字串裡面
+                {
+                    string[] sp_str = str.Split(',');//str是讀到的整筆資料 利用Split根據逗號分離
+                    double nor = Math.Round(double.Parse(sp_str[2]) / 100) + (double.Parse(sp_str[2]) % 100) / 60;
+                    //把讀到的sp_str用Math.Round轉成數值做運算 sp_str[2]經度 算完之後把數字丟給nor
+                    double est = Math.Round(double.Parse(sp_str[4]) / 100) + (double.Parse(sp_str[4]) % 100) / 60;
+                    //把讀到的sp_str用Math.Round轉成數值做運算 sp_str[4]緯度 算完之後把數字丟給est
+                    lb_est.Text = est.ToString(); //把算完的經度數字轉成字串丟給label顯示
+                    lb_nor.Text = nor.ToString(); //把算完的緯度數字轉成字串丟給label顯示
+                    int time = (int)double.Parse(sp_str[1]);
+                    //sp_str[1]是讀到的時間 因為後面有.000 所以用double.Parse寫 然後硬轉成int丟給time
+                    //因為這筆時間的資料沒有逗號或分號區隔 所以利用數學式算出時間
+                    int hour = (time / 10000); //EX:201002為time hour=201002/10000=20 
+                    int min = (time - hour * 10000) / 100;  //EX:201002為time min=(201002-20*10000)/100=10
+                    int sec = (time - hour * 10000 - min * 100);//EX:201002為time sec=201002-20*10000-10*100=02
+                    hour = hour + 8; //因為時區關係 所以讀到的時間要+8
+                    label2.Text = "經度"; label3.Text = "緯度"; label4.Text = "日期";
+                    lb_date.Text = DateTime.Now.ToShortDateString(); //利用C#裡面的DataTime取得今日日期
+                    if (hour >= 24) //當時間超過半夜12點 會歸零重新計算
+                    {
+                        hour = hour - 24;
+                    }
+                    if (hour > 12) //寫出判斷式 當小時>12 顯示下午 小時<12 顯示早上
+                    {
+                        label1.Text = "下午";
+                    }
+                    else
+                    {
+                        label1.Text = "早上";
+                    }
+                    lb_time.Text = string.Format("{0}:{1}:{2}", hour, min, sec);
+                    //利用Format印出三個指定物件 ({0}小時:{1}分鐘:{2}秒數)
+
+
+                    //foreach (var item in sp_str)
+                    //{
+                    //    rtb_content.Text += rtb_content.Text + item + "\n";
+                    //}
+                    //rtb_content.Text += str;
+                }
+
+            }
+            catch (TimeoutException)
+            {
+
+               
+            }
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e) 
+        {
+            t_updateRcBox.Enabled = false; 
+            _serial.Close();
+        }
+
+        private void Cb_serialportlist_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            _serialPortName = (string)cb_serialportlist.SelectedItem;
+        }
+
+        private void Btn_stop_Click(object sender, EventArgs e)
+        {
+            t_updateRcBox.Enabled = false;
+            _serial.Close();
+            btn_stop.Enabled = false;
+            btn_connectserail.Enabled = true;
+        }
+
+    }
+}
